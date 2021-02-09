@@ -48,14 +48,14 @@
   - Configurations view
   - Partitions view
   - ACLS view
-  - Consumers groups assignments view
+  - Consumer groups assignments view
   - Node leader & assignments view
   - Create a topic
   - Configure a topic
   - Delete a topic
 - **Browse Topic datas**
   - View data, offset, key, timestamp & headers
-  - Automatic deserializarion of avro message encoded with schema registry
+  - Automatic deserialization of avro message encoded with schema registry
   - Configurations view
   - Logs view
   - Delete a record
@@ -64,7 +64,7 @@
   - Filter per partitions
   - Filter with a starting time
   - Filter data with a search string
-- **Consumer Groups** (only with kafka internal storage, not with old Zookeeper)
+- **Consumer Groups** (only with kafka internal storage, not with the old Zookeeper one)
   - List with lag, topics assignments
   - Partitions view & lag
   - ACLS view
@@ -105,7 +105,7 @@ Since this is a major rework, the new UI can have some issues, so please [report
 * run `docker-compose up`
 * go to [http://localhost:8080](http://localhost:8080)
 
-It will start a Kafka node, a Zookeeper node, a Schema Registry, a Connect, fill with some sample data, start a consumer
+It will start a Kafka node, a Zookeeper node, a Schema Registry, a Kafka Connect, fill with some sample data, start a consumer
 group and a kafka stream & start AKHQ.
 
 ## Installation
@@ -155,9 +155,9 @@ helm install akhq akhq/akhq --version 0.1.0
 ### Using git
 * Clone the repository:
 ```sh
-git clone https://github.com/tchiotludo/akhq && cd akhq/deploy/helm/akhq
+git clone https://github.com/tchiotludo/akhq && cd akhq/helm/akhq
 ```
-* Update helm values located in [deploy/helm/values.yaml](helm/akhq/values.yaml)
+* Update helm values located in [values.yaml](helm/akhq/values.yaml)
   * `configuration` values will contains all related configuration that you can find in [application.example.yml](application.example.yml) and will be store in a `ConfigMap`
   * `secrets` values will contains all sensitive configurations (with credentials) that you can find in [application.example.yml](application.example.yml) and will be store in `Secret`
   * Both values will be merged at startup
@@ -211,14 +211,15 @@ If you do not override the `JVM_OPTS_FILE`, the docker container will take the d
 
 ### Kafka cluster configuration
 * `akhq.connections` is a key value configuration with :
-  * `key`: must be an url friendly (letter, number, _, -, ... dot are not allowed here)  string the identify your cluster (`my-cluster-1` and `my-cluster-2` is the example above)
+  * `key`: must be an url friendly (letter, number, _, -, ... dot are not allowed here)  string to identify your cluster (`my-cluster-1` and `my-cluster-2` is the example above)
   * `properties`: all the configurations found on [Kafka consumer documentation](https://kafka.apache.org/documentation/#consumerconfigs). Most important is `bootstrap.servers` that is a list of host:port of your Kafka brokers.
   * `schema-registry`: *(optional)*
     * `url`: the schema registry url
+    * `type`: the type of schema registry used, either 'confluent' or 'tibco'
     * `basic-auth-username`: schema registry basic auth username
     * `basic-auth-password`: schema registry basic auth password
     * `properties`: all the configurations for registry client, especially ssl configuration
-  * `connect`: *(optional list, define each connector as a element of a list)*
+  * `connect`: *(optional list, define each connector as an element of a list)*
     * `name`: connect name
     * `url`: connect url
     * `basic-auth-username`: connect basic auth username
@@ -254,6 +255,7 @@ akhq:
         ssl.key.password: {{password}}
       schema-registry:
         url: "https://{{host}}.aivencloud.com:12838"
+        type: "confluent"
         basic-auth-username: avnadmin
         basic-auth-password: {{password}}
         properties: {}
@@ -298,10 +300,12 @@ These parameters are the default values used in the topic creation page.
 #### Protobuf deserialization
 
 To deserialize topics containing data in Protobuf format, you can set topics mapping: 
-for each `topic-regex` you can specify `descriptor-file-base64` (descriptor file encoded to Base64 format)
-and corresponding message types for keys and values. If, for example, keys are not in Protobuf format, 
-`key-message-type` can be omitted, the same for `value-message-type`. This configuration can be specified 
-for each Kafka cluster.
+for each `topic-regex` you can specify `descriptor-file-base64` (descriptor file encoded to Base64 format),
+or you can put descriptor files in `descriptors-folder` and specify `descriptor-file` name, 
+also specify corresponding message types for keys and values. 
+If, for example, keys are not in Protobuf format, `key-message-type` can be omitted, 
+the same for `value-message-type`. 
+This configuration can be specified for each Kafka cluster.
 
 Example configuration can look like as follows:
 
@@ -313,6 +317,7 @@ akhq:
         # standard kafka properties
       deserialization:
         protobuf:
+          descriptors-folder: "/app/protobuf_desc"
           topics-mapping:
             - topic-regex: "album.*"
               descriptor-file-base64: "Cs4BCgthbGJ1bS5wcm90bxIXY29tLm5ldGNyYWNrZXIucHJvdG9idWYidwoFQWxidW0SFAoFdGl0bGUYASABKAlSBXRpdGxlEhYKBmFydGlzdBgCIAMoCVIGYXJ0aXN0EiEKDHJlbGVhc2VfeWVhchgDIAEoBVILcmVsZWFzZVllYXISHQoKc29uZ190aXRsZRgEIAMoCVIJc29uZ1RpdGxlQiUKF2NvbS5uZXRjcmFja2VyLnByb3RvYnVmQgpBbGJ1bVByb3RvYgZwcm90bzM="
@@ -321,21 +326,20 @@ akhq:
               descriptor-file-base64: "CuEBCgpmaWxtLnByb3RvEhRjb20uY29tcGFueS5wcm90b2J1ZiKRAQoERmlsbRISCgRuYW1lGAEgASgJUgRuYW1lEhoKCHByb2R1Y2VyGAIgASgJUghwcm9kdWNlchIhCgxyZWxlYXNlX3llYXIYAyABKAVSC3JlbGVhc2VZZWFyEhoKCGR1cmF0aW9uGAQgASgFUghkdXJhdGlvbhIaCghzdGFycmluZxgFIAMoCVIIc3RhcnJpbmdCIQoUY29tLmNvbXBhbnkucHJvdG9idWZCCUZpbG1Qcm90b2IGcHJvdG8z"
               value-message-type: "Film"
             - topic-regex: "test.*"
-              descriptor-file-base64: "Cs4LChhzdHJlYW1pbmctcHJvdG9jb2wucHJvdG8SLmNvbS5uZXRjcmFja2VyLnByb3RvYnVmLnNlcmlhbGl6YXRpb24ucHJvdG9jb2wiIwoFUG9pbnQSDAoBeBgBIAEoAVIBeBIMCgF5GAIgASgBUgF5IscFCgVEYXR1bRIfCgtjb2x1bW5fbmFtZRgBIAEoCVIKY29sdW1uTmFtZRJbCgtjb2x1bW5fdHlwZRgCIAEoDjI6LmNvbS5uZXRjcmFja2VyLnByb3RvYnVmLnNlcmlhbGl6YXRpb24ucHJvdG9jb2wuQ29sdW1uVHlwZVIKY29sdW1uVHlwZRIfCgtzY2hlbWFfbmFtZRgLIAEoCVIKc2NoZW1hTmFtZRJ4ChFzY2hlbWFfcGFyYW1ldGVycxgMIAMoCzJLLmNvbS5uZXRjcmFja2VyLnByb3RvYnVmLnNlcmlhbGl6YXRpb24ucHJvdG9jb2wuRGF0dW0uU2NoZW1hUGFyYW1ldGVyc0VudHJ5UhBzY2hlbWFQYXJhbWV0ZXJzEiUKDWRhdHVtX2ludGVnZXIYAyABKAVIAFIMZGF0dW1JbnRlZ2VyEh8KCmRhdHVtX2xvbmcYBCABKANIAFIJZGF0dW1Mb25nEiEKC2RhdHVtX2Zsb2F0GAUgASgCSABSCmRhdHVtRmxvYXQSIwoMZGF0dW1fZG91YmxlGAYgASgBSABSC2RhdHVtRG91YmxlEiUKDWRhdHVtX2Jvb2xlYW4YByABKAhIAFIMZGF0dW1Cb29sZWFuEiMKDGRhdHVtX3N0cmluZxgIIAEoCUgAUgtkYXR1bVN0cmluZxIhCgtkYXR1bV9ieXRlcxgJIAEoDEgAUgpkYXR1bUJ5dGVzElgKC2RhdHVtX3BvaW50GAogASgLMjUuY29tLm5ldGNyYWNrZXIucHJvdG9idWYuc2VyaWFsaXphdGlvbi5wcm90b2NvbC5Qb2ludEgAUgpkYXR1bVBvaW50GkMKFVNjaGVtYVBhcmFtZXRlcnNFbnRyeRIQCgNrZXkYASABKAlSA2tleRIUCgV2YWx1ZRgCIAEoCVIFdmFsdWU6AjgBQgcKBWRhdHVtIlIKA1JvdxJLCgVkYXR1bRgBIAMoCzI1LmNvbS5uZXRjcmFja2VyLnByb3RvYnVmLnNlcmlhbGl6YXRpb24ucHJvdG9jb2wuRGF0dW1SBWRhdHVtImkKBlNvdXJjZRIcCgljb25uZWN0b3IYASABKAlSCWNvbm5lY3RvchIcCgl0aW1lc3RhbXAYAiABKARSCXRpbWVzdGFtcBIjCg1sYXN0X3NuYXBzaG90GAMgASgIUgxsYXN0U25hcHNob3QijwIKCEVudmVsb3BlEhwKCXRpbWVzdGFtcBgBIAEoBFIJdGltZXN0YW1wEhwKCW9wZXJhdGlvbhgCIAEoCVIJb3BlcmF0aW9uElAKCGRhdGFfcm93GAMgASgLMjMuY29tLm5ldGNyYWNrZXIucHJvdG9idWYuc2VyaWFsaXphdGlvbi5wcm90b2NvbC5Sb3dIAFIHZGF0YVJvdxIdCglkYXRhX2pzb24YBCABKAlIAFIIZGF0YUpzb24STgoGc291cmNlGAUgASgLMjYuY29tLm5ldGNyYWNrZXIucHJvdG9idWYuc2VyaWFsaXphdGlvbi5wcm90b2NvbC5Tb3VyY2VSBnNvdXJjZUIGCgRkYXRhKnMKCkNvbHVtblR5cGUSCwoHSU5URUdFUhAAEggKBExPTkcQARIJCgVGTE9BVBACEgoKBkRPVUJMRRADEgsKB0JPT0xFQU4QBBIKCgZTVFJJTkcQBRIICgRKU09OEAYSCQoFQllURVMQBxIJCgVQT0lOVBAIQkUKLmNvbS5uZXRjcmFja2VyLnByb3RvYnVmLnNlcmlhbGl6YXRpb24ucHJvdG9jb2xCEVN0cmVhbWluZ1Byb3RvY29sSAFiBnByb3RvMw=="
+              descriptor-file: "other.desc"
               key-message-type: "Row"
               value-message-type: "Envelope"
 ```
 
 More examples about Protobuf deserialization can be found in [tests](./src/test/java/org/akhq/utils).
-Info about descriptor files generation can be found in [test resources](./src/test/resources/protobuf_proto).
+Info about the descriptor files generation can be found in [test resources](./src/test/resources/protobuf_proto).
 
 
 ### Security
 * `akhq.security.default-group`: Default group for all the user even unlogged user.
 By default, the default group is `admin` and allow you all read / write access on the whole app.
 
-By default, security & roles is enabled by default but anonymous user have full access. You can completely disabled
-security with `micronaut.security.enabled: false`.
+By default, security & roles is enabled by default but anonymous user have full access. You can completely disable security with `micronaut.security.enabled: false`.
 
 If you need a read-only application, simply add this to your configuration files :
 ```yaml
@@ -372,8 +376,9 @@ Groups allow you to limit user
 Define groups with specific roles for your users
 * `akhq.security.default-group`: Default group for all the user even unlogged user
 
-* `akhq.security.groups`: Groups list definition
-  * `- name: group-name` Group identifier
+* `akhq.security.groups`: Groups map definition
+  * `key:` a uniq key used as name if not specified
+    * `  name: group-name` Group identifier
     * `roles`: Roles list for the group
     * `attributes.topics-filter-regexp`: Regexp to filter topics available for current group
     * `attributes.connects-filter-regexp`: Regexp to filter Connect tasks available for current group
@@ -386,16 +391,16 @@ Define groups with specific roles for your users
 
 ##### Basic Auth
 * `akhq.security.basic-auth`: List user & password with affected roles
-  * `- username: actual-username`: Login of the current user as a yaml key (may be anything email, login, ...)
+  * `- username: actual-username`: Login of the current user as a yaml key (maybe anything email, login, ...)
     * `password`: Password in sha256 (default) or bcrypt. The password can be converted
       * For default SHA256, with command `echo -n "password" | sha256sum` or Ansible filter `{{ 'password' | hash('sha256') }}`
       * For BCrypt, with Ansible filter `{{ 'password' | password_hash('blowfish') }}`
     * `passwordHash`: Password hashing algorithm, either `SHA256` or `BCRYPT`
     * `groups`: Groups for current user
 
-> Take care that basic auth will use session store in server **memory**. If your instance is behind a reverse proxy or a
+> Take care that basic auth will use session store in the server **memory**. If your instance is behind a reverse proxy or a
 > loadbalancer, you will need to forward the session cookie named `SESSION` and / or use
-> [sesssion stickiness](https://en.wikipedia.org/wiki/Load_balancing_(computing)#Persistence)
+> [session stickiness](https://en.wikipedia.org/wiki/Load_balancing_(computing)#Persistence)
 
 Configure basic-auth connection in AKHQ
 ```yaml
@@ -471,7 +476,7 @@ Debuging ldap connection can be done with
 ```bash
 curl -i -X POST -H "Content-Type: application/json" \
        -d '{ "configuredLevel": "TRACE" }' \
-       http://localhost:8080/loggers/io.micronaut.configuration.security
+       http://localhost:8081/loggers/io.micronaut.configuration.security
 ```
 
 
@@ -480,14 +485,16 @@ Configure AKHQ groups and Ldap groups and users
 akhq:
   security:
     groups:
-      - name: topic-reader # Group name
+      topic-reader:
+        name: topic-reader # Group name
         roles:  # roles for the group
           - topic/read
         attributes:
           # Regexp to filter topic available for group
           topics-filter-regexp: "test\\.reader.*"
           connects-filter-regexp: "^test.*$"
-      - name: topic-writer # Group name
+      topic-writer:
+        name: topic-writer # Group name
         roles:
           - topic/read
           - topic/insert
@@ -540,11 +547,14 @@ akhq:
         google:
           label: "Login with Google"
           username-field: preferred_username
+          # specifies the field name in the oidc claim containig the use assigned role (eg. in keycloak this would be the Token Claim Name you set in your Client Role Mapper)
           groups-field: roles
           default-group: topic-reader
           groups:
+            # the name of the user role set in your oidc provider and associated with your user (eg. in keycloak this would be a client role)
             - name: mathematicians
               groups:
+                # the corresponding akhq groups (eg. topic-reader/writer or akhq default groups like admin/reader/no-role)
                 - topic-reader
             - name: scientists
               groups:
@@ -573,17 +583,20 @@ The username field can be any string field, the roles field has to be a JSON arr
 > More information can be found on [Micronaut documentation](https://docs.micronaut.io/snapshot/guide/index.html#config)
 
 ### Docker
-AKHQ docker image support 3 environment variables to handle configuraiton :
+
+The AKHQ docker image supports 4 environment variables to handle configuration :
 * `AKHQ_CONFIGURATION`: a string that contains the full configuration in yml that will be written on
-  /app/configuration.yml on container.
+  /app/configuration.yml on the container.
 * `MICRONAUT_APPLICATION_JSON`: a string that contains the full configuration in JSON format
-* `MICRONAUT_CONFIG_FILES`: a path to to a configuration file on container. Default path is `/app/application.yml`
+* `MICRONAUT_CONFIG_FILES`: a path to a configuration file in the container. Default path is `/app/application.yml`
+* `CLASSPATH`: additional Java classpath entries. Must be used to specify the location of the TIBCO Avro client library
+  jar if a 'tibco' schema registry type is used
 
 #### How to mount configuration file
 
 Take care when you mount configuration files to not remove akhq files located on /app.
-You need to explicitely mount the `/app/application.yml` and not mount the `/app` directory.
-This will remove the AKHQ binnaries and give you this error: `
+You need to explicitly mount the `/app/application.yml` and not mount the `/app` directory.
+This will remove the AKHQ binaries and give you this error: `
 /usr/local/bin/docker-entrypoint.sh: 9: exec: ./akhq: not found`
 
 ```yaml
@@ -595,26 +608,61 @@ volumeMounts:
 
 ```
 
+#### Using the TIBCO schema registry
+
+If you are using the TIBCO schema registry, you will also need to mount and use the TIBCO Avro client library and its
+dependencies. The akhq service in a docker compose file might look something like:
+
+```yaml
+  akhq:
+    # build:
+    #   context: .
+    image: tchiotludo/akhq
+    volumes:
+      - /opt/tibco/akd/repo/1.2/lib/tibftl-kafka-avro-1.2.0-thin.jar:/app/tibftl-kafka-avro-1.2.0-thin.jar
+      - /opt/tibco/akd/repo/1.2/lib/deps:/app/deps
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:9092"
+              schema-registry:
+                type: "tibco"
+                url: "http://repo:8081"
+              connect:
+                - name: "connect"
+                  url: "http://connect:8083"
+      CLASSPATH: "/app/tibftl-kafka-avro-1.2.0-thin.jar:/app/deps/*"
+    ports:
+      - 8080:8080
+    links:
+      - kafka
+      - repo
+```
+
 ## Api
 An **experimental** api is available that allow you to fetch all the exposed on AKHQ through api.
 
 Take care that this api is **experimental** and **will** change in a future release.
-Some endpoint expose too many datas and is slow to fetch, and we will remove
+Some endpoints expose too many datas and is slow to fetch, and we will remove
 some properties in a future in order to be fast.
 
-Example: List topic endpoint expose log dir, consumer groups, offsets. Fetching all of theses
-is slow for now and we will remove these in a future.
+Example: List topic endpoint expose log dir, consumer groups, offsets. Fetching all theses
+is slow for now, and we will remove these in a future.
 
 You can discover the api endpoint here :
 * `/api`: a [RapiDoc](https://mrin9.github.io/RapiDoc/) webpage that document all the endpoints.
 * `/swagger/akhq.yml`: a full [OpenApi](https://www.openapis.org/) specifications files
 
 ## Monitoring endpoint
-Several monitoring endpoint is enabled by default. You can disabled it or restrict access only for authenticated users
-following micronaut configuration below.
+Several monitoring endpoint is enabled by default and available on port `8081` only.
 
-* `/info` [Info Endpoint](https://docs.micronaut.io/snapshot/guide/index.html#infoEndpoint) with git status
-  informations.
+You can disable it, change the port or restrict access only for authenticated users following micronaut configuration below.
+
+
+* `/info` [Info Endpoint](https://docs.micronaut.io/snapshot/guide/index.html#infoEndpoint) with git status information.
 * `/health` [Health Endpoint](https://docs.micronaut.io/snapshot/guide/index.html#healthEndpoint)
 * `/loggers` [Loggers Endpoint](https://docs.micronaut.io/snapshot/guide/index.html#loggersEndpoint)
 * `/metrics` [Metrics Endpoint](https://docs.micronaut.io/snapshot/guide/index.html#metricsEndpoint)
@@ -626,7 +674,7 @@ You can debug all query duration from AKHQ with this commands
 ```bash
 curl -i -X POST -H "Content-Type: application/json" \
        -d '{ "configuredLevel": "TRACE" }' \
-       http://localhost:8080/loggers/org.akhq
+       http://localhost:8081/loggers/org.akhq
 ```
 
 ## Development Environment
@@ -651,11 +699,58 @@ Or build it with a `./gradlew shadowJar`, the jar will be located here `build/li
 
 ### Development Server
 
-A docker-compose is provide to start a development environnement.
+A docker-compose is provided to start a development environnement.
 Just install docker & docker-compose, clone the repository and issue a simple `docker-compose -f docker-compose-dev.yml up` to start a dev server.
 Dev server is a java server & webpack-dev-server with live reload.
 
 The configuration for the dev server is in `application.dev.yml`.
+
+### Setup local dev environment on Windows
+
+In case you want to develop for AKHQ on Windows with IntelliJ IDEA without Docker (for any reason) you can follow this
+brief guide. For the following steps please make sure that you meet this requirements:
+
+ * OS: Windows (10)
+ * Kafka (2.6.0) is downloaded and extracted, the install dir is referred to as $KAFKA_HOME in the latter
+ * Git is installed and configured
+ * IntelliJ IDEA (Community Edition 2020.2) with the following plugins installed:
+   * Gradle (bundled with IDEA)
+   * [Lombok](https://plugins.jetbrains.com/plugin/6317-lombok)
+ 
+First run a Kafka server locally. Therefore, you need to start Zookeeper first by opening a CMD and doing:
+```bash
+$KAFKA_HOME\bin\windows\zookeeper-server-start.bat config\zookeper.properties
+$KAFKA_HOME\bin\windows\kafka-server-start.bat config\server.properties
+```
+A zero-config Kafka server should be up and running locally on your machine now. For further details or troubleshooting
+see [Kafka Getting started guide](https://kafka.apache.org/quickstart). In the next step we're going to checkout AKHQ from GitHub:
+```bash
+git clone https://github.com/tchiotludo/akhq.git
+```
+
+Open the checked out directory in IntelliJ IDEA. The current version (0.16.0) of AKHQ is built with Java 11. If you
+don't have OpenJDK 11 installed already, do the following in IntelliJ IDEA: _File > Project Structure... > Platform Settings >
+SDKs > + > Download JDK... >_ select a vendor of your choice (but make sure it's version 11), download + install. Make sure
+that JDK 11 is set under _Project Settings > Project SDK_ and language level is Java 11. Now tell Gradle to use Java 11
+as well: _File > Settings > Plugins > Build, Execution, Deployment > Build Tools > Gradle > Gradle JVM_: any JDK 11.
+
+To configure AKHQ for using the Kafka server you set up before, edit `application.yml` by adding the following under `akhq`:
+```yaml
+akhq:
+  connections:
+    kafka:
+      properties:
+        bootstrap.servers: "localhost:9092"
+``` 
+/!\ Do not commit this part of `application.yml`. A more secure way to configure your local development Kafka server is
+described in the Micronaut doc, chapter ["Application Configuration"](https://docs.micronaut.io/1.3.0.M1/guide/index.html#config).
+
+Now you should be able to build the project with Gradle. Therefore, go to the Gradle view in IDEA, select _Tasks > build >
+build_. If an error occurs saying that any filename is too long: move your project directory to a root directory in your
+filesystem or as a fix (only for testing purposes) set the argument `-x test` to skip tests temporarily.
+
+To debug a running AKHQ instance, go to the Gradle tab in IntelliJ IDEA, _Tasks > application_ > right click `run` and click
+"_Debug(...)_". AKHQ should start up and hit the breakpoints you set in your IDE. Happy developing/debugging!
 
 ## Schema references
 

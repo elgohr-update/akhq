@@ -31,6 +31,7 @@ public class Connection extends AbstractProperties {
         String url;
         String basicAuthUsername;
         String basicAuthPassword;
+        SchemaRegistryType type = SchemaRegistryType.CONFLUENT;
 
         @MapFormat(transformation = MapFormat.MapTransformation.FLAT)
         Map<String, String> properties;
@@ -40,6 +41,7 @@ public class Connection extends AbstractProperties {
     @Data
     @ConfigurationProperties("deserialization.protobuf")
     public static class ProtobufDeserializationTopicsMapping {
+        String descriptorsFolder;
         List<TopicsMapping> topicsMapping = new ArrayList<>();
     }
 
