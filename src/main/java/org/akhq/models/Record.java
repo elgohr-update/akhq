@@ -50,41 +50,30 @@ public class Record {
 
     private final List<String> exceptions = new ArrayList<>();
 
-    private byte MAGIC_BYTE;
-
-    public Record(RecordMetadata record, SchemaRegistryType schemaRegistryType, byte[] bytesKey, byte[] bytesValue, Map<String, String> headers) {
-        if (schemaRegistryType == SchemaRegistryType.TIBCO) {
-            this.MAGIC_BYTE = (byte) 0x80;
-        } else {
-            this.MAGIC_BYTE = 0x0;
-        }
+    // TODO (Achim + Alex): use in TopicController as well
+    public Record(RecordMetadata record, Integer keySchemaId, Integer valueSchemaId, byte[] bytesKey, byte[] bytesValue, Map<String, String> headers) {
         this.topic = record.topic();
         this.partition = record.partition();
         this.offset = record.offset();
         this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
         this.bytesKey = bytesKey;
-        this.keySchemaId = getAvroSchemaId(this.bytesKey);
+        this.keySchemaId = keySchemaId;
         this.bytesValue = bytesValue;
-        this.valueSchemaId = getAvroSchemaId(this.bytesValue);
+        this.valueSchemaId = valueSchemaId;
         this.headers = headers;
     }
 
-    public Record(ConsumerRecord<byte[], byte[]> record, SchemaRegistryType schemaRegistryType, Deserializer kafkaAvroDeserializer,
+    public Record(ConsumerRecord<byte[], byte[]> record, Integer keySchemaId, Integer valueSchemaId, Deserializer kafkaAvroDeserializer,
                   ProtobufToJsonDeserializer protobufToJsonDeserializer, byte[] bytesValue) {
-        if (schemaRegistryType == SchemaRegistryType.TIBCO) {
-            this.MAGIC_BYTE = (byte) 0x80;
-        } else {
-            this.MAGIC_BYTE = 0x0;
-        }
         this.topic = record.topic();
         this.partition = record.partition();
         this.offset = record.offset();
         this.timestamp = ZonedDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneId.systemDefault());
         this.timestampType = record.timestampType();
         this.bytesKey = record.key();
-        this.keySchemaId = getAvroSchemaId(this.bytesKey);
+        this.keySchemaId = keySchemaId;
         this.bytesValue = bytesValue;
-        this.valueSchemaId = getAvroSchemaId(this.bytesValue);
+        this.valueSchemaId = valueSchemaId;
         for (Header header: record.headers()) {
             this.headers.put(header.key(), header.value() != null ? new String(header.value()) : null);
         }
@@ -145,20 +134,5 @@ public class Record {
             }
             return new String(payload);
         }
-    }
-
-    private Integer getAvroSchemaId(byte[] payload) {
-        try {
-            ByteBuffer buffer = ByteBuffer.wrap(payload);
-            byte magicBytes = buffer.get();
-            int schemaId = buffer.getInt();
-
-            if (magicBytes == MAGIC_BYTE && schemaId >= 0) {
-                return schemaId;
-            }
-        } catch (Exception ignore) {
-
-        }
-        return null;
     }
 }
