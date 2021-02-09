@@ -15,6 +15,7 @@ import org.akhq.models.Record;
 import org.akhq.models.Topic;
 import org.akhq.modules.AvroSerializer;
 import org.akhq.modules.KafkaModule;
+import org.akhq.modules.RecordFactory;
 import org.akhq.utils.Debug;
 import org.apache.kafka.clients.admin.DeletedRecords;
 import org.apache.kafka.clients.admin.RecordsToDelete;
@@ -49,10 +50,7 @@ public class RecordRepository extends AbstractRepository {
     private SchemaRegistryRepository schemaRegistryRepository;
 
     @Inject
-    private CustomDeserializerRepository customDeserializerRepository;
-
-    @Inject
-    private AvroWireFormatConverter avroWireFormatConverter;
+    private RecordFactory recordFactory;
 
     @Value("${akhq.topic-data.poll-timeout:1000}")
     protected int pollTimeout;
@@ -85,11 +83,11 @@ public class RecordRepository extends AbstractRepository {
         this.poll(consumer)
             .forEach(record -> {
                 if (!records.containsKey(record.topic())) {
-                    records.put(record.topic(), newRecord(record, clusterId));
+                    records.put(record.topic(), recordFactory.newRecord(record, clusterId));
                 } else {
                     Record current = records.get(record.topic());
                     if (current.getTimestamp().toInstant().toEpochMilli() < record.timestamp()) {
-                        records.put(record.topic(), newRecord(record, clusterId));
+                        records.put(record.topic(), recordFactory.newRecord(record, clusterId));
                     }
                 }
 
@@ -101,13 +99,16 @@ public class RecordRepository extends AbstractRepository {
 
     public List<Record> consume(String clusterId, Options options) throws ExecutionException, InterruptedException {
         return Debug.call(() -> {
+            final List<Record> records;
             Topic topicsDetail = topicRepository.findByName(clusterId, options.topic);
 
             if (options.sort == Options.Sort.OLDEST) {
-                return consumeOldest(topicsDetail, options);
+                records = consumeOldest(topicsDetail, options);
             } else {
-                return consumeNewest(topicsDetail, options);
+                records = consumeNewest(topicsDetail, options);
             }
+
+            return records;
         }, "Consume with options {}", Collections.singletonList(options.toString()));
     }
 
@@ -134,7 +135,7 @@ public class RecordRepository extends AbstractRepository {
             ConsumerRecords<byte[], byte[]> records = this.poll(consumer);
 
             for (ConsumerRecord<byte[], byte[]> record : records) {
-                Record current = newRecord(record, options);
+                Record current = recordFactory.newRecord(record, options);
                 if (searchFilter(options, current)) {
                     list.add(current);
                 }
@@ -191,7 +192,7 @@ public class RecordRepository extends AbstractRepository {
 
             ConsumerRecords<byte[], byte[]> records = this.poll(consumer);
             if(!records.isEmpty()) {
-                singleRecord = Optional.of(newRecord(records.iterator().next(), options));
+                singleRecord = Optional.of(recordFactory.newRecord(records.iterator().next(), options));
             }
 
             consumer.close();
@@ -292,7 +293,7 @@ public class RecordRepository extends AbstractRepository {
                             emptyPoll = 2;
                             break;
                         }
-                        Record current = newRecord(record, options);
+                        Record current = recordFactory.newRecord(record, options);
                         if (searchFilter(options, current)) {
                             list.add(current);
                         }
@@ -413,28 +414,6 @@ public class RecordRepository extends AbstractRepository {
 
         return consumer.poll(Duration.ofMillis(2000));
         */
-    }
-
-    private Record newRecord(ConsumerRecord<byte[], byte[]> record, String clusterId) {
-        return new Record(
-            record,
-            this.schemaRegistryRepository.getSchemaRegistryType(clusterId),
-            this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId),
-            this.customDeserializerRepository.getProtobufToJsonDeserializer(clusterId),
-            avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(clusterId),
-                    this.schemaRegistryRepository.getSchemaRegistryType(clusterId))
-        );
-    }
-
-    private Record newRecord(ConsumerRecord<byte[], byte[]> record, BaseOptions options) {
-        return new Record(
-            record,
-            this.schemaRegistryRepository.getSchemaRegistryType(options.clusterId),
-            this.schemaRegistryRepository.getKafkaAvroDeserializer(options.clusterId),
-            this.customDeserializerRepository.getProtobufToJsonDeserializer(options.clusterId),
-            avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(options.clusterId),
-                    this.schemaRegistryRepository.getSchemaRegistryType(options.clusterId))
-        );
     }
 
     private RecordMetadata produce(
@@ -598,7 +577,7 @@ public class RecordRepository extends AbstractRepository {
             for (ConsumerRecord<byte[], byte[]> record : records) {
                 currentEvent.updateProgress(record);
 
-                Record current = newRecord(record, options);
+                Record current = recordFactory.newRecord(record, options);
                 if (searchFilter(options, current)) {
                     list.add(current);
                     matchesCount.getAndIncrement();
@@ -816,7 +795,7 @@ public class RecordRepository extends AbstractRepository {
                     record.offset()
                 );
 
-                Record current = newRecord(record, options);
+                Record current = recordFactory.newRecord(record, options);
                 if (searchFilter(options, current)) {
                     list.add(current);
                     log.trace(
