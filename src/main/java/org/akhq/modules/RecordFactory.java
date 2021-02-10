@@ -48,17 +48,7 @@ public class RecordFactory {
     }
 
     public Record newRecord(ConsumerRecord<byte[], byte[]> record, RecordRepository.BaseOptions options) {
-        final SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(options.getClusterId());
-
-        return new Record(
-                record,
-                determineAvroSchema(schemaRegistryType, record.key()),
-                determineAvroSchema(schemaRegistryType, record.value()),
-                this.schemaRegistryRepository.getKafkaAvroDeserializer(options.getClusterId()),
-                this.customDeserializerRepository.getProtobufToJsonDeserializer(options.getClusterId()),
-                avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(options.getClusterId()),
-                        this.schemaRegistryRepository.getSchemaRegistryType(options.getClusterId()))
-        );
+        return this.newRecord(record, options.getClusterId());
     }
 
     private Integer determineAvroSchema(SchemaRegistryType schemaRegistryType, byte[] payload) {
