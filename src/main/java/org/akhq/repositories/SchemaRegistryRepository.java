@@ -21,6 +21,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -135,6 +136,20 @@ public class SchemaRegistryRepository extends AbstractRepository {
                 return new Schema(schema, parsedSchema, config);
             })
             .collect(Collectors.toList());
+    }
+
+    public Integer determineAvroSchemaForPayload(SchemaRegistryType schemaRegistryType, byte[] payload) {
+        try {
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            byte magicBytes = buffer.get();
+            int schemaId = buffer.getInt();
+
+            if (magicBytes == schemaRegistryType.getMagicByte() && schemaId >= 0) {
+                return schemaId;
+            }
+        } catch (Exception ignore) {
+        }
+        return null;
     }
 
     public Schema lookUpSubjectVersion(String clusterId, String subject, org.apache.avro.Schema schema, boolean deleted) throws IOException, RestClientException {

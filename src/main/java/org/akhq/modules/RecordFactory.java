@@ -33,13 +33,16 @@ public class RecordFactory {
     private Deserializer kafkaAvroDeserializer;
     private ProtobufToJsonDeserializer protobufToJsonDeserializer;
 
+    public RecordFactory() {
+    }
+
     public Record newRecord(ConsumerRecord<byte[], byte[]> record, String clusterId) {
-        final SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(clusterId);
+        SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(clusterId);
 
         return new Record(
                 record,
-                determineAvroSchema(schemaRegistryType, record.key()),
-                determineAvroSchema(schemaRegistryType, record.value()),
+                schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.key()),
+                schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.value()),
                 this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId),
                 this.customDeserializerRepository.getProtobufToJsonDeserializer(clusterId),
                 avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(clusterId),
@@ -49,21 +52,5 @@ public class RecordFactory {
 
     public Record newRecord(ConsumerRecord<byte[], byte[]> record, RecordRepository.BaseOptions options) {
         return this.newRecord(record, options.getClusterId());
-    }
-
-    private Integer determineAvroSchema(SchemaRegistryType schemaRegistryType, byte[] payload) {
-
-        try {
-            final ByteBuffer buffer = ByteBuffer.wrap(payload);
-            final byte magicBytes = buffer.get();
-            final int schemaId = buffer.getInt();
-
-            if (magicBytes == schemaRegistryType.getMagicByte() && schemaId >= 0) {
-                return schemaId;
-            }
-        } catch (Exception ignore) {
-
-        }
-        return null;
     }
 }

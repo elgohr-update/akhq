@@ -35,22 +35,17 @@ public class Record {
     @JsonIgnore
     private Deserializer kafkaAvroDeserializer;
     private ProtobufToJsonDeserializer protobufToJsonDeserializer;
-
     @Getter(AccessLevel.NONE)
     private byte[] bytesKey;
-
     @Getter(AccessLevel.NONE)
     private String key;
-
     @Getter(AccessLevel.NONE)
     private byte[] bytesValue;
-
     @Getter(AccessLevel.NONE)
     private String value;
 
     private final List<String> exceptions = new ArrayList<>();
 
-    // TODO (Achim + Alex): use in TopicController as well
     public Record(RecordMetadata record, Integer keySchemaId, Integer valueSchemaId, byte[] bytesKey, byte[] bytesValue, Map<String, String> headers) {
         this.topic = record.topic();
         this.partition = record.partition();

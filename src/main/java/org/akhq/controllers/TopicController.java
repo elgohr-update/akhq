@@ -18,8 +18,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.akhq.configs.Role;
+import org.akhq.configs.SchemaRegistryType;
 import org.akhq.models.*;
 import org.akhq.modules.AbstractKafkaWrapper;
+import org.akhq.modules.RecordFactory;
 import org.akhq.repositories.*;
 import org.akhq.utils.Pagination;
 import org.akhq.utils.ResultNextList;
@@ -57,6 +59,8 @@ public class TopicController extends AbstractController {
     private AccessControlListRepository aclRepository;
     @Inject
     private SchemaRegistryRepository schemaRegistryRepository;
+    @Inject
+    private RecordFactory recordFactory;
 
     @Value("${akhq.topic.replication}")
     private Short replicationFactor;
@@ -136,6 +140,10 @@ public class TopicController extends AbstractController {
         Optional<Integer> keySchema,
         Optional<Integer> valueSchema
     ) throws ExecutionException, InterruptedException {
+        SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(cluster);
+        byte[] keyBytes = key.map(String::getBytes).orElse(null);
+        byte[] valueBytes = value.getBytes();
+
         return new Record(
             this.recordRepository.produce(
                 cluster,
@@ -148,9 +156,10 @@ public class TopicController extends AbstractController {
                 keySchema,
                 valueSchema
             ),
-            schemaRegistryRepository.getSchemaRegistryType(cluster),
-            key.map(String::getBytes).orElse(null),
-            value.getBytes(),
+            schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, keyBytes),
+            schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, valueBytes),
+            keyBytes,
+            valueBytes,
             headers
         );
     }
@@ -271,6 +280,9 @@ public class TopicController extends AbstractController {
     @Delete("api/{cluster}/topic/{topicName}/data")
     @Operation(tags = {"topic data"}, summary = "Delete data from a topic by key")
     public Record deleteRecordApi(String cluster, String topicName, Integer partition, String key) throws ExecutionException, InterruptedException {
+        SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(cluster);
+        byte[] keyBytes = Base64.getDecoder().decode(key);
+
         return new Record(
             this.recordRepository.delete(
                 cluster,
@@ -278,8 +290,9 @@ public class TopicController extends AbstractController {
                 partition,
                 Base64.getDecoder().decode(key)
             ),
-            schemaRegistryRepository.getSchemaRegistryType(cluster),
-            Base64.getDecoder().decode(key),
+            schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, keyBytes),
+            null,
+            keyBytes,
             null,
             new HashMap<>()
         );
