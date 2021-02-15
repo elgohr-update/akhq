@@ -106,6 +106,7 @@ public class KafkaTestCluster implements Runnable, Stoppable {
             put("max.compaction.lag.ms", "1");
             put("authorizer.class.name", "kafka.security.auth.SimpleAclAuthorizer");
             put("allow.everyone.if.no.acl.found", "true");
+            put("log.cleaner.enable", "false");
 
             // Segment config
             put(TopicConfig.SEGMENT_MS_CONFIG, "1");

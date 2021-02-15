@@ -16,6 +16,7 @@ plugins {
     id 'com.github.psxpaul.execfork' version '0.1.13'
     id "com.github.ben-manes.versions" version "0.28.0"
     id "com.commercehub.gradle.plugin.avro" version "0.21.0"
+    id "ua.eshepelyuk.ManifestClasspath" version "1.0.0"
 }
 
 group "org.akhq"
