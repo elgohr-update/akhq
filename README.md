@@ -472,14 +472,6 @@ attributes:
 ```
 with your group membership attribute
 
-Debuging ldap connection can be done with
-```bash
-curl -i -X POST -H "Content-Type: application/json" \
-       -d '{ "configuredLevel": "TRACE" }' \
-       http://localhost:8081/loggers/io.micronaut.configuration.security
-```
-
-
 Configure AKHQ groups and Ldap groups and users
 ```yaml
 akhq:
@@ -568,6 +560,20 @@ akhq:
 ```
 
 The username field can be any string field, the roles field has to be a JSON array.
+
+### Debugging authentification
+
+Debugging auth can be done increase log level on micronaut that handle most of the authentification part : 
+```bash
+curl -i -X POST -H "Content-Type: application/json" \
+       -d '{ "configuredLevel": "TRACE" }' \
+       http://localhost:8081/loggers/io.micronaut.security
+       
+       
+curl -i -X POST -H "Content-Type: application/json" \
+       -d '{ "configuredLevel": "TRACE" }' \
+       http://localhost:8081/loggers/org.akhq.configs
+```
 
 ### Server
 * `micronaut.server.context-path`: if behind a reverse proxy, path to akhq with trailing slash (optional). Example:
@@ -822,6 +828,8 @@ Documentation on Confluent 5.5 and schema references can be found [here](https:/
 * [BARMER](https://www.barmer.de/)
 * [TVG](https://www.tvg.com)
 * [Depop](https://www.depop.com)
+* [BPCE-IT](https://www.bpce-it.fr/)
+
 
 
 ## Credits
