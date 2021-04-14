@@ -54,7 +54,7 @@
   - Create a topic
   - Configure a topic
   - Delete a topic
-- **Browse Topic datas**
+- **Browse Topic data**
   - View data, offset, key, timestamp & headers
   - Automatic deserialization of avro message encoded with schema registry
   - Configurations view
@@ -89,13 +89,14 @@
 - **ACLS**
   - List principals
   - List principals topic & group acls
-- **Authentification and Roles**
+- **Authentication and Roles**
   - Read only mode
   - BasicHttp with roles per user
   - User groups configuration
   - Filter topics with regexp for current groups
   - Ldap configuration to match AKHQ groups/roles
-
+  - Filter consumer groups with regexp for current groups
+  
 ## New React UI
 
 Since this is a major rework, the new UI can have some issues, so please [report any issue](https://github.com/tchiotludo/akhq/issues), thanks!
@@ -174,8 +175,8 @@ file example can be found here :[application.example.yml](application.example.ym
 
 ### Pass custom Java opts
 
-By default, the docker container will allow a custom jvn options setting the environnments vars `JAVA_OPTS`.
-For example, if you want to change the default timezome, just add `-e "JAVA_OPTS=-Duser.timezone=Europe/Paris"`
+By default, the docker container will allow a custom JVM options setting the environments vars `JAVA_OPTS`.
+For example, if you want to change the default timezone, just add `-e "JAVA_OPTS=-Duser.timezone=Europe/Paris"`
 
 ### Run with another jvm.options file
 
@@ -259,7 +260,9 @@ akhq:
         type: "confluent"
         basic-auth-username: avnadmin
         basic-auth-password: {{password}}
-        properties: {}
+        properties:
+          schema.registry.ssl.truststore.location: {{path}}/avnadmin.truststore.jks
+          schema.registry.ssl.truststore.password: {{password}}
       connect:
         - name: connect-1
           url: "https://{{host}}.aivencloud.com:{{port}}"
@@ -366,7 +369,8 @@ I put oauth.ssl.endpoint_identification_algorithm = "" for testing or my certifi
 * `akhq.security.default-group`: Default group for all the user even unlogged user.
 By default, the default group is `admin` and allow you all read / write access on the whole app.
 
-By default, security & roles is enabled by default but anonymous user have full access. You can completely disable security with `micronaut.security.enabled: false`.
+By default, security & roles is disabled and anonymous user have full access, i.e. `micronaut.security.enabled: false`.
+To enable security & roles set `micronaut.security.enabled: true` and configure desired type of authentication (basic auth, LDAP, etc.).
 
 If you need a read-only application, simply add this to your configuration files :
 ```yaml
@@ -407,13 +411,14 @@ Define groups with specific roles for your users
   * `key:` a uniq key used as name if not specified
     * `  name: group-name` Group identifier
     * `roles`: Roles list for the group
-    * `attributes.topics-filter-regexp`: Regexp to filter topics available for current group
-    * `attributes.connects-filter-regexp`: Regexp to filter Connect tasks available for current group
+    * `attributes.topics-filter-regexp`: Regexp list to filter topics available for current group
+    * `attributes.connects-filter-regexp`: Regexp list to filter Connect tasks available for current group
+    * `attributes.consumer-groups-filter-regexp`: Regexp list to filter Consumer Groups available for current group
 
 
 3 defaults group are available :
 - `admin` with all right
-- `reader` with only read acces on all AKHQ
+- `reader` with only read access on all AKHQ
 - `no-roles` without any roles, that force user to login
 
 ##### Basic Auth
@@ -431,6 +436,9 @@ Define groups with specific roles for your users
 
 Configure basic-auth connection in AKHQ
 ```yaml
+micronaut:
+  security:
+    enabled: true
 akhq.security:
   basic-auth:
     - username: admin
@@ -456,6 +464,7 @@ Configure ldap connection in micronaut
 ```yaml
 micronaut:
   security:
+    enabled: true
     ldap:
       default:
         enabled: true
@@ -481,6 +490,7 @@ In Case your LDAP groups do not use the default UID for group membership, you ca
 ```yaml
 micronaut:
   security:
+    enabled: true
     ldap:
       default:
         search:
@@ -501,6 +511,9 @@ with your group membership attribute
 
 Configure AKHQ groups and Ldap groups and users
 ```yaml
+micronaut:
+  security:
+    enabled: true
 akhq:
   security:
     groups:
@@ -509,9 +522,16 @@ akhq:
         roles:  # roles for the group
           - topic/read
         attributes:
-          # Regexp to filter topic available for group
-          topics-filter-regexp: "test\\.reader.*"
-          connects-filter-regexp: "^test.*$"
+          # List of Regexp to filter topic available for group
+          # Single line String also allowed
+          # topics-filter-regexp: "^(projectA_topic|projectB_.*)$"
+          topics-filter-regexp:
+            - "^projectA_topic$" # Individual topic
+            - "^projectB_.*$" # Topic group
+          connects-filter-regexp: 
+            - "^test.*$"
+          consumer-groups-filter-regexp: 
+            - "consumer.*"
       topic-writer:
         name: topic-writer # Group name
         roles:
@@ -520,8 +540,12 @@ akhq:
           - topic/delete
           - topic/config/update
         attributes:
-          topics-filter-regexp: "test.*"
-          connects-filter-regexp: "^test.*$"
+          topics-filter-regexp: 
+            - "test.*"
+          connects-filter-regexp:
+            - "^test.*$"
+          consumer-groups-filter-regexp:
+            - "consumer.*"
     ldap:
       groups:
         - name: mathematicians
@@ -566,7 +590,7 @@ akhq:
         google:
           label: "Login with Google"
           username-field: preferred_username
-          # specifies the field name in the oidc claim containig the use assigned role (eg. in keycloak this would be the Token Claim Name you set in your Client Role Mapper)
+          # specifies the field name in the oidc claim containing the use assigned role (eg. in keycloak this would be the Token Claim Name you set in your Client Role Mapper)
           groups-field: roles
           default-group: topic-reader
           groups:
@@ -588,9 +612,9 @@ akhq:
 
 The username field can be any string field, the roles field has to be a JSON array.
 
-### Debugging authentification
+### Debugging authentication
 
-Debugging auth can be done increase log level on micronaut that handle most of the authentification part : 
+Debugging auth can be done by increasing log level on Micronaut that handle most of the authentication part : 
 ```bash
 curl -i -X POST -H "Content-Type: application/json" \
        -d '{ "configuredLevel": "TRACE" }' \
@@ -679,7 +703,7 @@ dependencies. The akhq service in a docker compose file might look something lik
 An **experimental** api is available that allow you to fetch all the exposed on AKHQ through api.
 
 Take care that this api is **experimental** and **will** change in a future release.
-Some endpoints expose too many datas and is slow to fetch, and we will remove
+Some endpoints expose too many data and is slow to fetch, and we will remove
 some properties in a future in order to be fast.
 
 Example: List topic endpoint expose log dir, consumer groups, offsets. Fetching all theses
@@ -732,7 +756,7 @@ Or build it with a `./gradlew shadowJar`, the jar will be located here `build/li
 
 ### Development Server
 
-A docker-compose is provided to start a development environnement.
+A docker-compose is provided to start a development environment.
 Just install docker & docker-compose, clone the repository and issue a simple `docker-compose -f docker-compose-dev.yml up` to start a dev server.
 Dev server is a java server & webpack-dev-server with live reload.
 
@@ -741,10 +765,10 @@ The configuration for the dev server is in `application.dev.yml`.
 ### Setup local dev environment on Windows
 
 In case you want to develop for AKHQ on Windows with IntelliJ IDEA without Docker (for any reason) you can follow this
-brief guide. For the following steps please make sure that you meet this requirements:
+brief guide. For the following steps, please, make sure you meet these requirements:
 
  * OS: Windows (10)
- * Kafka (2.6.0) is downloaded and extracted, the install dir is referred to as $KAFKA_HOME in the latter
+ * Kafka (2.6.0) is downloaded and extracted, the installation directory is referred to as $KAFKA_HOME in the latter
  * Git is installed and configured
  * IntelliJ IDEA (Community Edition 2020.2) with the following plugins installed:
    * Gradle (bundled with IDEA)
