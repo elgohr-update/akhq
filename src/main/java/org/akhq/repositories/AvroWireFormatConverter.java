@@ -29,12 +29,12 @@ import javax.inject.Singleton;
 @Slf4j
 public class AvroWireFormatConverter {
 
-    private static final Pattern AVRO_CONTENT_TYPE_PATTERN = Pattern.compile("\"?application/vnd\\.(.+)\\.v(\\d+)\\+avro\"?");
+    public static final Pattern AVRO_CONTENT_TYPE_PATTERN = Pattern.compile("\"?application/vnd\\.(.+)\\.v(\\d+)\\+avro\"?");
 
     public byte[] convertValueToWireFormat(ConsumerRecord<byte[], byte[]> record, SchemaRegistryClient registryClient, SchemaRegistryType schemaRegistryType) {
-        byte magicByte = 0x0;
+        byte magicByte = SchemaRegistryType.CONFLUENT.getMagicByte();
         if (schemaRegistryType == SchemaRegistryType.TIBCO) {
-            magicByte = (byte) 0x80;
+            magicByte = SchemaRegistryType.TIBCO.getMagicByte();
         }
         Iterator<Header> contentTypeIter = record.headers().headers("contentType").iterator();
         byte[] value = record.value();

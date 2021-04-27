@@ -12,9 +12,13 @@ import org.akhq.repositories.RecordRepository;
 import org.akhq.repositories.SchemaRegistryRepository;
 import org.akhq.utils.ProtobufToJsonDeserializer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import javax.inject.Singleton;
+import java.nio.ByteBuffer;
+import java.util.Iterator;
+import java.util.regex.Matcher;
 
 @Singleton
 public class RecordFactory {
@@ -39,7 +43,23 @@ public class RecordFactory {
         Integer keySchemaId = schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.key());
         Integer valueSchemaId = schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.value());
 
+        // base record (default: string)
         Record akhqRecord = new Record(record, keySchemaId, valueSchemaId);
+
+        // avro wire format
+        Iterator<Header> contentTypeIter = record.headers().headers("contentType").iterator();
+        byte[] value = record.value();
+        if (contentTypeIter.hasNext() && value.length > 0 && ByteBuffer.wrap(value).get() != schemaRegistryType.getMagicByte()) {
+            String headerValue = new String(contentTypeIter.next().value());
+            Matcher matcher = AvroWireFormatConverter.AVRO_CONTENT_TYPE_PATTERN.matcher(headerValue);
+            if (matcher.matches()) {
+                String subject = matcher.group(1);
+                int version = Integer.parseInt(matcher.group(2));
+                value = prependWireFormatHeader(value, registryClient, subject, version, magicByte);
+            }
+        }
+        return value;
+
 
         // TODO: ,
         //                avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(clusterId),
@@ -48,6 +68,7 @@ public class RecordFactory {
         Deserializer kafkaAvroDeserializer = this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId);
         ProtobufToJsonDeserializer protobufToJsonDeserializer = customDeserializerRepository.getProtobufToJsonDeserializer(clusterId);
 
+        // key deserializiation
         if(keySchemaId != null) {
             akhqRecord = new AvroKeySchemaRecord(akhqRecord, kafkaAvroDeserializer);
         } else {
@@ -57,9 +78,9 @@ public class RecordFactory {
                     akhqRecord = protoBufKey;
                 }
             }
-            // default: string deserializer
         }
 
+        // value deserializiation
         if(valueSchemaId != null) {
             akhqRecord = new AvroValueSchemaRecord(akhqRecord, kafkaAvroDeserializer);
         } else {
@@ -69,7 +90,6 @@ public class RecordFactory {
                     akhqRecord = protoBufValue;
                 }
             }
-            // default: string deserializer
         }
 
         return akhqRecord;
