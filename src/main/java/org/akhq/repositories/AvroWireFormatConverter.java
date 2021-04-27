@@ -32,10 +32,7 @@ public class AvroWireFormatConverter {
     public static final Pattern AVRO_CONTENT_TYPE_PATTERN = Pattern.compile("\"?application/vnd\\.(.+)\\.v(\\d+)\\+avro\"?");
 
     public byte[] convertValueToWireFormat(ConsumerRecord<byte[], byte[]> record, SchemaRegistryClient registryClient, SchemaRegistryType schemaRegistryType) {
-        byte magicByte = SchemaRegistryType.CONFLUENT.getMagicByte();
-        if (schemaRegistryType == SchemaRegistryType.TIBCO) {
-            magicByte = SchemaRegistryType.TIBCO.getMagicByte();
-        }
+        byte magicByte = schemaRegistryType.getMagicByte();
         Iterator<Header> contentTypeIter = record.headers().headers("contentType").iterator();
         byte[] value = record.value();
         if (contentTypeIter.hasNext() &&
