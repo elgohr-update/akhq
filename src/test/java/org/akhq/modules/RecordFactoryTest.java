@@ -2,9 +2,8 @@ package org.akhq.modules;
 
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import org.akhq.KafkaTestCluster;
-import org.akhq.models.decorators.AvroValueSchemaRecord;
 import org.akhq.models.Record;
-import org.akhq.repositories.AvroWireFormatConverter;
+import org.akhq.models.decorators.AvroValueSchemaRecord;
 import org.akhq.repositories.CustomDeserializerRepository;
 import org.akhq.repositories.SchemaRegistryRepository;
 import org.akhq.utils.ProtobufToJsonDeserializer;
@@ -29,10 +28,9 @@ class RecordFactoryTest {
         when(protoBufDeserializer.deserialize(anyString(), any(), anyBoolean())).thenReturn(null);
         CustomDeserializerRepository customDeserializerRepository = mock(CustomDeserializerRepository.class);
         when(customDeserializerRepository.getProtobufToJsonDeserializer(any())).thenReturn(protoBufDeserializer);
-        AvroWireFormatConverter avroWireFormatConverter = mock(AvroWireFormatConverter.class);
         SchemaRegistryRepository schemaRegistryRepository = mock(SchemaRegistryRepository.class);
         when(schemaRegistryRepository.determineAvroSchemaForPayload(any(), any())).thenReturn(null);
-        RecordFactory underTest = new RecordFactory(kafkaModule, customDeserializerRepository, avroWireFormatConverter, schemaRegistryRepository);
+        RecordFactory underTest = new RecordFactory(kafkaModule, customDeserializerRepository, schemaRegistryRepository);
 
         byte[] key = null;
         byte[] value = "anyValue".getBytes(StandardCharsets.UTF_8);
@@ -48,11 +46,10 @@ class RecordFactoryTest {
     public void testNoKeyAvroValue() {
         KafkaModule kafkaModule = mock(KafkaModule.class);
         CustomDeserializerRepository customDeserializerRepository = mock(CustomDeserializerRepository.class);
-        AvroWireFormatConverter avroWireFormatConverter = mock(AvroWireFormatConverter.class);
         SchemaRegistryRepository schemaRegistryRepository = mock(SchemaRegistryRepository.class);
         when(schemaRegistryRepository.getKafkaAvroDeserializer(anyString())).thenReturn(new KafkaAvroDeserializer());
         when(schemaRegistryRepository.determineAvroSchemaForPayload(any(), any())).thenReturn(null).thenReturn(1);
-        RecordFactory underTest = new RecordFactory(kafkaModule, customDeserializerRepository, avroWireFormatConverter, schemaRegistryRepository);
+        RecordFactory underTest = new RecordFactory(kafkaModule, customDeserializerRepository, schemaRegistryRepository);
 
         String jsonValue = "{\"id\":10,\"name\":\"Tiger\",\"weight\":\"10.40\"}";
         byte[] key = null;
