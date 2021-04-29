@@ -24,7 +24,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -35,7 +34,6 @@ import static org.mockito.Mockito.when;
 public class AvroWireFormattedRecordTest {
 
     private SchemaRegistryClient schemaRegistryClient;
-    private AvroContentTypeParser avroContentTypeParser;
 
     @Data
     @AllArgsConstructor
@@ -55,7 +53,7 @@ public class AvroWireFormattedRecordTest {
         when(schemaRegistryClient.getSchemaById(id)).thenReturn(new AvroSchema(schema, id));
         when(schemaRegistryClient.getSchemaMetadata("mySubject", 1)).thenReturn(new SchemaMetadata(id, 1, ""));
 
-        avroContentTypeParser = new AvroContentTypeParser();
+        AvroContentTypeParser avroContentTypeParser = new AvroContentTypeParser();
     }
 
     @Test
