@@ -3,7 +3,7 @@ package org.akhq.models.decorators;
 import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
-import io.micronaut.core.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.akhq.models.Record;
 
 import java.io.ByteArrayOutputStream;
@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
  * - schema reference (subject and version) can be found in the message header
  * - schema can be fetch from the registry
  */
+@Slf4j
 public class AvroWireFormattedRecord extends Record {
     private final SchemaRegistryClient registryClient;
     private final AvroContentTypeMetaData avroContentTypeMetaData;
@@ -34,15 +35,19 @@ public class AvroWireFormattedRecord extends Record {
     @Override
     public byte[] getBytesValue() {
         if(this.bytesValue != null && this.bytesValue.length > 1 && avroContentTypeMetaData != null) {
-            try {
+            try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 SchemaMetadata schemaMetadata = registryClient.getSchemaMetadata(avroContentTypeMetaData.getSubject(), avroContentTypeMetaData.getVersion());
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
                 out.write(magicByte);
                 out.write(ByteBuffer.allocate(4).putInt(schemaMetadata.getId()).array());
                 out.write(this.bytesValue);
                 return out.toByteArray();
             } catch (IOException | RestClientException e) {
-                // ignore on purpose, dont prepend anything
+                if(log.isTraceEnabled()) {
+                    log.debug("Failure when trying to parse schema metadata of subject {} and version {}.",
+                        avroContentTypeMetaData.getSubject(),
+                        avroContentTypeMetaData.getVersion()
+                    );
+                }
             }
         }
 
