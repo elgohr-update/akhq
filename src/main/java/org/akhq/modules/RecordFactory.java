@@ -45,7 +45,7 @@ public class RecordFactory {
         Optional<AvroContentTypeMetaData> avroContentTypeMetaData = avroContentTypeParser.parseAvroContentTypeMetaData(record, schemaRegistryType);
         if(avroContentTypeMetaData.isPresent()) {
             AvroContentTypeMetaData avrometa = avroContentTypeMetaData.get();
-            akhqRecord = new AvroWireFormattedRecord(akhqRecord, registryClient, avrometa.getSubject(), avrometa.getVersion(), schemaRegistryType.getMagicByte());
+            akhqRecord = new AvroWireFormattedRecord(akhqRecord, registryClient, avrometa, schemaRegistryType.getMagicByte());
         }
 
         Deserializer kafkaAvroDeserializer = this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId);
