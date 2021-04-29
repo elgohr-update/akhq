@@ -1,6 +1,5 @@
 package org.akhq.models.decorators;
 
-import lombok.Data;
 import org.akhq.configs.SchemaRegistryType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
@@ -14,7 +13,7 @@ import java.util.regex.Pattern;
 
 @Singleton
 public class AvroContentTypeParser {
-    public static final Pattern AVRO_CONTENT_TYPE_PATTERN = Pattern.compile("\"?application/vnd\\.(.+)\\.v(\\d+)\\+avro\"?");
+    private static final Pattern AVRO_CONTENT_TYPE_PATTERN = Pattern.compile("\"?application/vnd\\.(.+)\\.v(\\d+)\\+avro\"?");
 
     public Optional<AvroContentTypeMetaData> parseAvroContentTypeMetaData(ConsumerRecord<byte[], byte[]> record, SchemaRegistryType schemaRegistryType) {
         Iterator<Header> contentTypeIter = record.headers().headers("contentType").iterator();
