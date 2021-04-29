@@ -9,13 +9,10 @@ import org.akhq.repositories.RecordRepository;
 import org.akhq.repositories.SchemaRegistryRepository;
 import org.akhq.utils.ProtobufToJsonDeserializer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import javax.inject.Singleton;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.regex.Matcher;
+import java.util.Optional;
 
 @Singleton
 public class RecordFactory {
@@ -23,13 +20,16 @@ public class RecordFactory {
     private final KafkaModule kafkaModule;
     private final CustomDeserializerRepository customDeserializerRepository;
     private final SchemaRegistryRepository schemaRegistryRepository;
+    private final AvroContentTypeParser avroContentTypeParser;
 
     public RecordFactory(KafkaModule kafkaModule,
                          CustomDeserializerRepository customDeserializerRepository,
-                         SchemaRegistryRepository schemaRegistryRepository) {
+                         SchemaRegistryRepository schemaRegistryRepository,
+                         AvroContentTypeParser avroContentTypeParser) {
         this.kafkaModule = kafkaModule;
         this.customDeserializerRepository = customDeserializerRepository;
         this.schemaRegistryRepository = schemaRegistryRepository;
+        this.avroContentTypeParser = avroContentTypeParser;
     }
 
     public Record newRecord(ConsumerRecord<byte[], byte[]> record, String clusterId) {
@@ -42,17 +42,10 @@ public class RecordFactory {
         Record akhqRecord = new Record(record, keySchemaId, valueSchemaId);
 
         // avro wire format
-        Iterator<Header> contentTypeIter = record.headers().headers("contentType").iterator();
-        byte magicByte = schemaRegistryType.getMagicByte();
-        byte[] value = record.value();
-        if (contentTypeIter.hasNext() && value.length > 0 && ByteBuffer.wrap(value).get() != magicByte) {
-            String headerValue = new String(contentTypeIter.next().value());
-            Matcher matcher = AvroWireFormattedRecord.AVRO_CONTENT_TYPE_PATTERN.matcher(headerValue);
-            if (matcher.matches()) {
-                String subject = matcher.group(1);
-                int version = Integer.parseInt(matcher.group(2));
-                akhqRecord = new AvroWireFormattedRecord(akhqRecord, registryClient, subject, version, magicByte);
-            }
+        Optional<AvroContentTypeMetaData> avroContentTypeMetaData = avroContentTypeParser.parseAvroContentTypeMetaData(record, schemaRegistryType);
+        if(avroContentTypeMetaData.isPresent()) {
+            AvroContentTypeMetaData avrometa = avroContentTypeMetaData.get();
+            akhqRecord = new AvroWireFormattedRecord(akhqRecord, registryClient, avrometa.getSubject(), avrometa.getVersion(), schemaRegistryType.getMagicByte());
         }
 
         Deserializer kafkaAvroDeserializer = this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId);

@@ -1,4 +1,4 @@
-package org.akhq.repositories;
+package org.akhq.models.decorators;
 
 import io.confluent.kafka.schemaregistry.avro.AvroSchema;
 import io.confluent.kafka.schemaregistry.avro.AvroSchemaUtils;
@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.akhq.configs.SchemaRegistryType;
+import org.akhq.models.Record;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.DatumWriter;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -30,10 +32,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class AvroWireFormatConverterTest {
+public class AvroWireFormattedRecordTest {
 
-    private AvroWireFormatConverter avroWireFormatConverter;
     private SchemaRegistryClient schemaRegistryClient;
+    private AvroContentTypeParser avroContentTypeParser;
 
     @Data
     @AllArgsConstructor
@@ -45,27 +47,38 @@ public class AvroWireFormatConverterTest {
     @BeforeEach
     @SneakyThrows
     public void before() {
-        avroWireFormatConverter = new AvroWireFormatConverter();
         schemaRegistryClient = mock(SchemaRegistryClient.class);
-
-
         ReflectData reflectData = ReflectData.get();
         Schema schema = reflectData.getSchema(MyRecord.class);
         int id = 100;
         when(schemaRegistryClient.getById(id)).thenReturn(schema);
         when(schemaRegistryClient.getSchemaById(id)).thenReturn(new AvroSchema(schema, id));
         when(schemaRegistryClient.getSchemaMetadata("mySubject", 1)).thenReturn(new SchemaMetadata(id, 1, ""));
+
+        avroContentTypeParser = new AvroContentTypeParser();
     }
 
     @Test
     public void convertValueToWireFormatNull() {
-        byte[] convertedValue = avroWireFormatConverter.convertValueToWireFormat(new ConsumerRecord<>("topic", 1, 0, new byte[0], null), schemaRegistryClient, SchemaRegistryType.CONFLUENT);
+        ConsumerRecord<byte[], byte[]> consumerRecord = new ConsumerRecord<>("topic", 1, 0, new byte[0], null);
+        Record akhqRecord = new Record(consumerRecord, null, null);
+        Optional<AvroContentTypeMetaData> avroMeta = avroContentTypeParser.parseAvroContentTypeMetaData(consumerRecord, SchemaRegistryType.CONFLUENT);
+        String subject = avroMeta.map(AvroContentTypeMetaData::getSubject).orElse(null);
+        int version = avroMeta.map(AvroContentTypeMetaData::getVersion).orElse(0);
+        AvroWireFormattedRecord underTest = new AvroWireFormattedRecord(akhqRecord, schemaRegistryClient, subject, version, SchemaRegistryType.CONFLUENT.getMagicByte());
+        byte[] convertedValue = underTest.getBytesValue();
         assertNull(convertedValue);
     }
 
     @Test
     public void convertValueToWireFormatEmptyValue() {
-        byte[] convertedValue = avroWireFormatConverter.convertValueToWireFormat(new ConsumerRecord<>("topic", 1, 0, new byte[0], new byte[0]), schemaRegistryClient, SchemaRegistryType.CONFLUENT);
+        ConsumerRecord<byte[], byte[]> consumerRecord = new ConsumerRecord<>("topic", 1, 0, new byte[0], new byte[0]);
+        Record akhqRecord = new Record(consumerRecord, null, null);
+        Optional<AvroContentTypeMetaData> avroMeta = avroContentTypeParser.parseAvroContentTypeMetaData(consumerRecord, SchemaRegistryType.CONFLUENT);
+        String subject = avroMeta.map(AvroContentTypeMetaData::getSubject).orElse(null);
+        int version = avroMeta.map(AvroContentTypeMetaData::getVersion).orElse(0);
+        AvroWireFormattedRecord underTest = new AvroWireFormattedRecord(akhqRecord, schemaRegistryClient, subject, version, SchemaRegistryType.CONFLUENT.getMagicByte());
+        byte[] convertedValue = underTest.getBytesValue();
         assertEquals(0, convertedValue.length);
     }
 
@@ -77,7 +90,12 @@ public class AvroWireFormatConverterTest {
 
         ConsumerRecord<byte[], byte[]> consumerRecord = new ConsumerRecord<>("topic", 1, 0, new byte[0], avroPayload);
         consumerRecord.headers().add(new RecordHeader("contentType", "mySubject.v1".getBytes()));
-        byte[] convertedValue = avroWireFormatConverter.convertValueToWireFormat(consumerRecord, schemaRegistryClient, SchemaRegistryType.CONFLUENT);
+        Record akhqRecord = new Record(consumerRecord, null, null);
+        Optional<AvroContentTypeMetaData> avroMeta = avroContentTypeParser.parseAvroContentTypeMetaData(consumerRecord, SchemaRegistryType.CONFLUENT);
+        String subject = avroMeta.map(AvroContentTypeMetaData::getSubject).orElse(null);
+        int version = avroMeta.map(AvroContentTypeMetaData::getVersion).orElse(0);
+        AvroWireFormattedRecord underTest = new AvroWireFormattedRecord(akhqRecord, schemaRegistryClient, subject, version, SchemaRegistryType.CONFLUENT.getMagicByte());
+        byte[] convertedValue = underTest.getBytesValue();
 
         assertEquals(convertedValue, avroPayload);
     }
@@ -90,7 +108,12 @@ public class AvroWireFormatConverterTest {
 
         ConsumerRecord<byte[], byte[]> consumerRecord = new ConsumerRecord<>("topic", 1, 0, new byte[0], avroPayload);
         consumerRecord.headers().add(new RecordHeader("contentType", "application/vnd.mySubject.v1+avro".getBytes()));
-        byte[] convertedValue = avroWireFormatConverter.convertValueToWireFormat(consumerRecord, schemaRegistryClient, SchemaRegistryType.CONFLUENT);
+        Record akhqRecord = new Record(consumerRecord, null, null);
+        Optional<AvroContentTypeMetaData> avroMeta = avroContentTypeParser.parseAvroContentTypeMetaData(consumerRecord, SchemaRegistryType.CONFLUENT);
+        String subject = avroMeta.map(AvroContentTypeMetaData::getSubject).orElse(null);
+        int version = avroMeta.map(AvroContentTypeMetaData::getVersion).orElse(0);
+        AvroWireFormattedRecord underTest = new AvroWireFormattedRecord(akhqRecord, schemaRegistryClient, subject, version, SchemaRegistryType.CONFLUENT.getMagicByte());
+        byte[] convertedValue = underTest.getBytesValue();
 
         KafkaAvroDeserializer kafkaAvroDeserializer = new KafkaAvroDeserializer(schemaRegistryClient);
         GenericData.Record deserializedRecord = (GenericData.Record) kafkaAvroDeserializer.deserialize(null, convertedValue);
