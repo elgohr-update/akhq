@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
  * - schema can be fetch from the registry
  */
 @Slf4j
-public class AvroWireFormattedRecord extends Record {
+public class AvroWireFormattedRecord extends RecordDecorator {
     private final SchemaRegistryClient registryClient;
     private final AvroContentTypeMetaData avroContentTypeMetaData;
     private final byte magicByte;
@@ -34,12 +34,14 @@ public class AvroWireFormattedRecord extends Record {
 
     @Override
     public byte[] getBytesValue() {
-        if(this.bytesValue != null && this.bytesValue.length > 1 && avroContentTypeMetaData != null) {
+        byte[] parentBytes = super.getBytesValue();
+
+        if(parentBytes != null && parentBytes.length > 1 && avroContentTypeMetaData != null) {
             try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
                 SchemaMetadata schemaMetadata = registryClient.getSchemaMetadata(avroContentTypeMetaData.getSubject(), avroContentTypeMetaData.getVersion());
                 out.write(magicByte);
                 out.write(ByteBuffer.allocate(4).putInt(schemaMetadata.getId()).array());
-                out.write(this.bytesValue);
+                out.write(parentBytes);
                 return out.toByteArray();
             } catch (IOException | RestClientException e) {
                 if(log.isTraceEnabled()) {
@@ -50,7 +52,6 @@ public class AvroWireFormattedRecord extends Record {
                 }
             }
         }
-
-        return this.bytesValue;
+        return parentBytes;
     }
 }
