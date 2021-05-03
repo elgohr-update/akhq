@@ -9,10 +9,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.akhq.Breed;
+import org.akhq.Cat;
 import org.akhq.configs.SchemaRegistryType;
 import org.akhq.models.Record;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.io.EncoderFactory;
@@ -20,11 +24,15 @@ import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.reflect.ReflectDatumWriter;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.apache.kafka.common.serialization.Deserializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.io.ByteArrayOutputStream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
@@ -108,6 +116,40 @@ public class AvroWireFormattedRecordTest {
         GenericData.Record deserializedRecord = (GenericData.Record) kafkaAvroDeserializer.deserialize(null, convertedValue);
         assertEquals(record.getAnInt(), deserializedRecord.get(1));
         assertEquals(record.getAString(), deserializedRecord.get(0).toString());
+    }
+
+    @Test
+    @SneakyThrows
+    public void decoratesOtherDecoratorsCorrectly() {
+
+        // GIVEN avro key data
+        String avroCatExampleJson = "{\"id\":10,\"name\":\"Tom\",\"breed\":\"SPHYNX\"}";
+        GenericRecord avroCatExample = new GenericRecordBuilder(Cat.SCHEMA$)
+                .set("id", 10)
+                .set("name", "Tom")
+                .set("breed", Breed.SPHYNX)
+                .build();
+
+        // AND avro wire serialized value data
+        MyRecord record = new MyRecord(42, "leet");
+        byte[] avroPayload = serializeAvro(record);
+
+        // AND a record instance with both key and value bytes payload
+        ConsumerRecord<byte[], byte[]> consumerRecord = new ConsumerRecord<>("topic", 1, 0, new byte[0], avroPayload);
+        consumerRecord.headers().add(new RecordHeader("contentType", "application/vnd.mySubject.v1+avro".getBytes()));
+        Record akhqRecord = new Record(consumerRecord, null, null);
+
+        // AND base record is decorated with an avro key deserializer
+        Deserializer<Object> aMockedAvroDeserializer = Mockito.mock(KafkaAvroDeserializer.class);
+        Mockito.when(aMockedAvroDeserializer.deserialize(Mockito.any(), Mockito.any())).thenReturn(avroCatExample); //
+        Record decoratedRecord = new AvroKeySchemaRecord(akhqRecord, aMockedAvroDeserializer);
+
+        // AND already decorated record is decorated with a value wire format deserializer decorator
+        AvroContentTypeMetaData metaData = AvroContentTypeMetaData.of("mySubject", 1);
+        AvroWireFormattedRecord underTest = new AvroWireFormattedRecord(decoratedRecord, schemaRegistryClient, metaData, SchemaRegistryType.CONFLUENT.getMagicByte());
+
+        // EXPECT getKey() call returns a String with the original json key content
+        assertThat(underTest.getKey(), is(avroCatExampleJson));
     }
 
     @SneakyThrows
