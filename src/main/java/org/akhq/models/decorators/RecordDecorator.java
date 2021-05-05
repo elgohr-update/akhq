@@ -13,7 +13,7 @@ import java.util.Map;
 public abstract class RecordDecorator extends Record {
 
     /** Wrapped record instance to decorate */
-    private Record wrapped;
+    private final Record wrapped;
 
     /**
      * Constructor takes a record object and uses it as a reference

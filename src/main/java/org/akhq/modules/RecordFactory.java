@@ -1,12 +1,9 @@
 package org.akhq.modules;
 
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.akhq.configs.SchemaRegistryType;
-import org.akhq.models.*;
-import org.akhq.models.decorators.AvroKeySchemaRecord;
-import org.akhq.models.decorators.AvroValueSchemaRecord;
-import org.akhq.models.decorators.ProtoBufKeySchemaRecord;
-import org.akhq.models.decorators.ProtoBufValueSchemaRecord;
-import org.akhq.repositories.AvroWireFormatConverter;
+import org.akhq.models.Record;
+import org.akhq.models.decorators.*;
 import org.akhq.repositories.CustomDeserializerRepository;
 import org.akhq.repositories.RecordRepository;
 import org.akhq.repositories.SchemaRegistryRepository;
@@ -15,39 +12,46 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import javax.inject.Singleton;
+import java.util.Optional;
 
 @Singleton
 public class RecordFactory {
 
     private final KafkaModule kafkaModule;
     private final CustomDeserializerRepository customDeserializerRepository;
-    private final AvroWireFormatConverter avroWireFormatConverter;
     private final SchemaRegistryRepository schemaRegistryRepository;
+    private final AvroContentTypeParser avroContentTypeParser;
 
     public RecordFactory(KafkaModule kafkaModule,
                          CustomDeserializerRepository customDeserializerRepository,
-                         AvroWireFormatConverter avroWireFormatConverter,
-                         SchemaRegistryRepository schemaRegistryRepository) {
+                         SchemaRegistryRepository schemaRegistryRepository,
+                         AvroContentTypeParser avroContentTypeParser) {
         this.kafkaModule = kafkaModule;
         this.customDeserializerRepository = customDeserializerRepository;
-        this.avroWireFormatConverter = avroWireFormatConverter;
         this.schemaRegistryRepository = schemaRegistryRepository;
+        this.avroContentTypeParser = avroContentTypeParser;
     }
 
     public Record newRecord(ConsumerRecord<byte[], byte[]> record, String clusterId) {
         SchemaRegistryType schemaRegistryType = this.schemaRegistryRepository.getSchemaRegistryType(clusterId);
+        SchemaRegistryClient registryClient = kafkaModule.getRegistryClient(clusterId);
         Integer keySchemaId = schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.key());
         Integer valueSchemaId = schemaRegistryRepository.determineAvroSchemaForPayload(schemaRegistryType, record.value());
 
+        // base record (default: string)
         Record akhqRecord = new Record(record, keySchemaId, valueSchemaId);
 
-        // TODO: ,
-        //                avroWireFormatConverter.convertValueToWireFormat(record, this.kafkaModule.getRegistryClient(clusterId),
-        //                        this.schemaRegistryRepository.getSchemaRegistryType(clusterId)
+        // avro wire format
+        Optional<AvroContentTypeMetaData> avroContentTypeMetaData = avroContentTypeParser.parseAvroContentTypeMetaData(record, schemaRegistryType);
+        if(avroContentTypeMetaData.isPresent()) {
+            AvroContentTypeMetaData avrometa = avroContentTypeMetaData.get();
+            akhqRecord = new AvroWireFormattedRecord(akhqRecord, registryClient, avrometa, schemaRegistryType.getMagicByte());
+        }
 
         Deserializer kafkaAvroDeserializer = this.schemaRegistryRepository.getKafkaAvroDeserializer(clusterId);
         ProtobufToJsonDeserializer protobufToJsonDeserializer = customDeserializerRepository.getProtobufToJsonDeserializer(clusterId);
 
+        // key deserializiation
         if(keySchemaId != null) {
             akhqRecord = new AvroKeySchemaRecord(akhqRecord, kafkaAvroDeserializer);
         } else {
@@ -57,9 +61,9 @@ public class RecordFactory {
                     akhqRecord = protoBufKey;
                 }
             }
-            // default: string deserializer
         }
 
+        // value deserializiation
         if(valueSchemaId != null) {
             akhqRecord = new AvroValueSchemaRecord(akhqRecord, kafkaAvroDeserializer);
         } else {
@@ -69,7 +73,6 @@ public class RecordFactory {
                     akhqRecord = protoBufValue;
                 }
             }
-            // default: string deserializer
         }
 
         return akhqRecord;
