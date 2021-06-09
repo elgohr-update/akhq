@@ -37,7 +37,6 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import org.akhq.models.Record;
 
 @Slf4j
 @Secured(Role.ROLE_TOPIC_READ)
@@ -201,7 +200,7 @@ public class TopicController extends AbstractController {
             data,
             options.after(data, uri),
             (options.getPartition() == null ? topic.getSize() : topic.getSize(options.getPartition())),
-            topic.canDeleteRecords(cluster, configRepository)
+            this.isAllowed(Role.ROLE_TOPIC_DATA_DELETE) && topic.canDeleteRecords(cluster, configRepository)
         );
     }
 
@@ -366,7 +365,7 @@ public class TopicController extends AbstractController {
             String cluster,
             String topicName,
             Integer partition,
-            Integer offset
+            Long offset
     ) throws ExecutionException, InterruptedException {
         Topic topic = this.topicRepository.findByName(cluster, topicName);
 
@@ -391,7 +390,7 @@ public class TopicController extends AbstractController {
                 data,
                 URIBuilder.empty(),
                 data.size(),
-                topic.canDeleteRecords(cluster, configRepository)
+            this.isAllowed(Role.ROLE_TOPIC_DATA_DELETE) && topic.canDeleteRecords(cluster, configRepository)
         );
     }
 
