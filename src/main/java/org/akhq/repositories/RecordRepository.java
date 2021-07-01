@@ -616,15 +616,21 @@ public class RecordRepository extends AbstractRepository {
             return search(options.getSearch(), Arrays.asList(record.getKey(), record.getValue()));
         } else {
             if (options.getSearchByKey() != null) {
-                if (!search(options.getSearchByKey(), Collections.singletonList(record.getKey()))) return false;
+                if (!search(options.getSearchByKey(), Collections.singletonList(record.getKey()))) {
+                    return false;
+                }
             }
 
             if (options.getSearchByValue() != null) {
-                if (!search(options.getSearchByValue(), Collections.singletonList(record.getValue()))) return false;
+                if (!search(options.getSearchByValue(), Collections.singletonList(record.getValue()))) {
+                    return false;
+                }
             }
 
             if (options.getSearchByHeaderKey() != null) {
-                if (!search(options.getSearchByHeaderKey(), record.getHeaders().keySet())) return false;
+                if (!search(options.getSearchByHeaderKey(), record.getHeaders().keySet())) {
+                    return false;
+                }
             }
 
             if (options.getSearchByHeaderValue() != null) {
@@ -646,6 +652,12 @@ public class RecordRepository extends AbstractRepository {
     }
 
     private static boolean containsAll(String search, Collection<String> in) {
+        if (search.equals("null")) {
+            return in
+                .stream()
+                .allMatch(Objects::isNull);
+        }
+
         String[] split = search.toLowerCase().split("\\s");
         for (String s : in) {
             if(s != null) {
@@ -661,6 +673,12 @@ public class RecordRepository extends AbstractRepository {
     }
 
     private static boolean equalsAll(String search, Collection<String> in) {
+        if (search.equals("null")) {
+            return in
+                .stream()
+                .allMatch(Objects::isNull);
+        }
+
         String[] split = search.toLowerCase().split("\\s");
         for (String s : in) {
             if(s != null) {
@@ -676,6 +694,12 @@ public class RecordRepository extends AbstractRepository {
     }
 
     private static boolean notContainsAll(String search, Collection<String> in) {
+        if (search.equals("null")) {
+            return in
+                .stream()
+                .noneMatch(Objects::isNull);
+        }
+
         String[] split = search.toLowerCase().split("\\s");
         for (String s : in) {
             if(s != null) {
